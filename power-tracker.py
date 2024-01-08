@@ -1,7 +1,7 @@
 import requests
 import re
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 import plotly.express as px
 import webbrowser
@@ -48,16 +48,39 @@ else:
 new_line = {'date': time.strftime('%Y-%m-%d %H:%M:%S'), 'in': in_val, 'out': out_val}
 df = df._append(new_line, ignore_index=True)
 
+df['in']=df['in'].astype(float)
+df['out']=df['out'].astype(float)
+
+
+# Eltérések hozzáadása az előző értékekhez képest
+df['in_prev'] = df['in'].shift(1).astype(float)
+df['out_prev'] = df['out'].shift(1).astype(float)
+
+df['in_diff'] = df['in']-df['in_prev']
+df['out_diff'] = df['out']-df['out_prev']
+df=df.fillna(0)
+print(df)
+
+# Az előző sorok dátumának kinyerése (shift metódus használata)
+df['previous_date'] = df['date'].shift(1)
+df['elapsed_time_since_previous'] = (pd.to_datetime(df['date']) - pd.to_datetime(df['previous_date'])).dt.total_seconds() / 3600
+
+
+df['in_per_hour']=df['in_diff']/df['elapsed_time_since_previous']
+df['out_per_hour']=df['out_diff']/df['elapsed_time_since_previous']
+
+
+df_val=df[['date', 'in_per_hour', 'out_per_hour']]
+
+print(df_val)
+
 # DataFrame mentése
 df.to_csv(file_name, index=False)
 
-# Grafikon készítése
-fig = px.line(df, x='date', y=['in', 'out'], title='Energiafogyasztás időbeli alakulása')
+# Grafikon készítése hosszú formátumú DataFrame alapján
+fig = px.line(df_val, x='date', y=['out_per_hour','in_per_hour'], title='Energiafogyasztás időbeli alakulása')
 graph = 'energy_consuption_graph.html'
 fig.write_html(graph)
 
 # Grafikon megnyitása
 webbrowser.open_new_tab(graph)
-
-# Várakozás felhasználói inputra a kilépéshez
-input("Nyomj Enter-t a kilepeshez...")
